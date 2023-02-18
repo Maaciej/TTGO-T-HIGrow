@@ -7,7 +7,7 @@ void read_batt_info()
     Serial.println(readString);
 
     battChargeEpoc = getValue(readString, ':', 0);
-    config.batchargeDate = getValue(readString, ':', 1);
+    config.batChargeDate = getValue(readString, ':', 1);
 
     readString = "";
 }

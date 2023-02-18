@@ -11,9 +11,9 @@ uint32_t readSalt()
   for (int i = 0; i < samples; i++)
   {
     array[i] = analogRead(SALT_PIN);
-  //  Serial.print("Read salt pin : ");
+    //  Serial.print("Read salt pin : ");
 
-  //  Serial.println(array[i]);
+    //  Serial.println(array[i]);
     delay(2);
   }
   std::sort(array, array + samples);
@@ -30,7 +30,7 @@ uint32_t readSalt()
 // READ Soil
 uint16_t readSoil()
 {
-  Serial.println(soil_max);
+  // Serial.println(soil_max);
   uint16_t soil = analogRead(SOIL_PIN);
   Serial.print("Soil before map: ");
   Serial.println(soil);
@@ -43,7 +43,7 @@ float readSoilTemp()
   // READ Soil Temperature
   if (USE_18B20_TEMP_SENSOR)
   {
-    //Single data stream upload
+    // Single data stream upload
     temp = temp18B20.temp();
   }
   else
@@ -54,17 +54,24 @@ float readSoilTemp()
 }
 
 // READ Battery
-float readBattery()
+float readBattery(uint16_t voltx)
 {
-  int vref = 1100;
-  uint16_t volt = analogRead(BAT_ADC);
-  Serial.print("Volt direct ");
+  uint16_t volt;
+  volt = voltx; // read at "setup" start
+
+  Serial.print("\nVolt reading raw ");
   Serial.println(volt);
   config.batvolt = volt;
-  float battery_voltage = ((float)volt / 4095.0) * 2.0 * 3.3 * (vref) / 1000;
-  config.batvoltage = battery_voltage;
+
+  // float battery_voltage = ((float)volt / 4095.0) * 2.0 * 3.3 * (vref) / 1000;
+  // float battery_voltage =  0.001338217338 * volt +  0.948424908425 ;//volts
+  float battery_voltage = (bat_volt_high - bat_volt_low) / (bat_reading_high - bat_reading_low) * volt + bat_volt_high - bat_reading_high * (bat_volt_high - bat_volt_low) / (bat_reading_high - bat_reading_low); // true volts
+  config.batVoltage = battery_voltage;
+
   Serial.print("Battery Voltage: ");
-  Serial.println(battery_voltage);
-  battery_voltage = battery_voltage * 100;
-  return map(battery_voltage, 416, 290, 100, 0);
+  Serial.println((float)battery_voltage);
+  // Serial.println( 100 *  ( battery_voltage - 3.07) / ( 3.66 - 3.07 )) ;
+  // battery_voltage = battery_voltage * 10000;
+  // return map(battery_voltage, 36600, 30700, 10000, 0)/100;
+  return 100 * (battery_voltage - bat_volt_low) / (bat_volt_high - bat_volt_low); // battery volt percents
 }
