@@ -10,7 +10,8 @@ public:
     float temp()
     {
         uint8_t arr[2] = {0};
-        if (reset()) {
+        if (reset())
+        {
             wByte(0xCC);
             wByte(0x44);
             delay(750);
@@ -24,6 +25,7 @@ public:
         }
         return 0;
     }
+
 private:
     int pin;
 
@@ -32,7 +34,8 @@ private:
         pinMode(pin, OUTPUT);
         digitalWrite(pin, LOW);
         delayMicroseconds(5);
-        if (bit)digitalWrite(pin, HIGH);
+        if (bit)
+            digitalWrite(pin, HIGH);
         delayMicroseconds(80);
         digitalWrite(pin, HIGH);
     }
@@ -50,7 +53,8 @@ private:
 
     void wByte(uint8_t bytes)
     {
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 8; ++i)
+        {
             write((bytes >> i) & 1);
         }
         delayMicroseconds(100);
@@ -59,8 +63,10 @@ private:
     uint8_t rByte()
     {
         uint8_t r = 0;
-        for (int i = 0; i < 8; ++i) {
-            if (read()) r |= 1 << i;
+        for (int i = 0; i < 8; ++i)
+        {
+            if (read())
+                r |= 1 << i;
             delayMicroseconds(15);
         }
         return r;

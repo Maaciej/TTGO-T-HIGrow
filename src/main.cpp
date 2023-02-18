@@ -45,7 +45,8 @@
 //           rel = "4.2.2"; // For the Greenhouse auto watering, the plantValveNo have been introduced. (Greenhouse auto watering is in development)
 //           rel = "4.2.3"; // Removed the battery day counter - for good, use BeardedTingers solution if you need it.
 //           rel = "4.3.1"; // Finally the days since last charging works correctly.
-const String rel = "4.3.2"; // Corrected an error in DST.
+//           rel = "4.3.2"; // Corrected an error in DST.
+const String rel = "5.0.0"; // Reworked auto discovery
 
 // mqtt constants
 WiFiClient wifiClient;
@@ -57,36 +58,42 @@ String battChargeEpoc;
 unsigned long epochChargeTime;
 float battChargeDateDivider = 86400;
 float daysOnBattery;
+unsigned long setupstart;
 
 // Reboot counters
 RTC_DATA_ATTR int bootCount = 0;
-RTC_DATA_ATTR int sleep5no = 0;
+RTC_DATA_ATTR int sleep5No = 0;
 
-//Sensor bools
+// Voltage stabilization
+// RTC_DATA_ATTR float voltage_previous_read = 0;
+
+// Sensor bools
 bool bme_found = false;
 
-//json construct setup
+// json construct setup
 struct Config
 {
   String date;
   String time;
-  int bootno;
+  int bootNo;
   int sleep5no;
   float lux;
   float temp;
   float humid;
-  float soil;
+  float soilHumidity;
   float soilTemp;
-  float salt;
-  String saltadvice;
-  float bat;
-  String batcharge;
-  String batchargeDate;
+  float fertilizer;
+  String fertilizerAdvice;
+  float batPercentage;
+  String batStatus;
+  String batChargeDate;
   float daysOnBattery;
   float batvolt;
-  float batvoltage;
+  float batvolt_read;
+  // float batvolt_prev;
+  float batVoltage;
   float pressure;
-  String rel;
+  String releaseVersion;
 };
 Config config;
 
@@ -103,8 +110,8 @@ const int led = 13;
 #define USER_BUTTON 35
 #define DS18B20_PIN 21
 
-BH1750 lightMeter(0x23); //0x23
-Adafruit_BME280 bmp;     //0x77
+BH1750 lightMeter(0x23); // 0x23
+Adafruit_BME280 bmp;     // 0x77
 
 DHT dht(DHT_PIN, DHT_TYPE);
 DS18B20 temp18B20(DS18B20_PIN);
@@ -126,10 +133,47 @@ String timeStamp1;
 #include <read-batt-info.h>
 #include <floatConv.h>
 
+// void listAllFiles(){
+
+//   File root = SPIFFS.open("/");
+
+//   File file = root.openNextFile();
+
+//   while(file){
+
+//       Serial.print("FILE: ");
+//       Serial.println(file.name());
+
+//       file = root.openNextFile();
+//   }
+
+// }
+
 void setup()
 {
+  setupstart = millis(); // like 43
+  //! Sensor power control pin , use deteced must set high
+  pinMode(POWER_CTRL, OUTPUT);
+  digitalWrite(POWER_CTRL, 1);
+  delay(1000);
+
   Serial.begin(115200);
   Serial.println("Void Setup");
+
+  // WiFi.mode(WIFI_STA);
+  // Set your new MAC Address
+  // uint8_t newMACAddress[] = {0x36, 0xe6, 0xE2, 0x72, 0xc2, 0x55};
+  // Serial.print("[NEW] ESP32 Board MAC Address:  ");
+  // Serial.println(WiFi.macAddress());
+  // ESP32 Board add-on after version > 1.0.5
+  // esp_wifi_set_mac(WIFI_IF_STA, &newMACAddress[0]);
+
+  // Serial.print("[NEW] ESP32 Board MAC Address:  ");
+  // Serial.println(WiFi.macAddress());
+
+  uint16_t voltx = analogRead(BAT_ADC); // start of work no wifi fresh battery
+  Serial.print("VOLTXXXXXXXX :");
+  Serial.println(voltx);
 
 #include <module-parameter-management.h>
 
@@ -154,22 +198,14 @@ void setup()
   }
 
 #include <time-management.h>
-  //#include <battChargeDays.h>
+  // #include <battChargeDays.h>
   if (dht_found)
   {
+    Serial.println(F("Attempting to connect to DHT sensor..."));
     dht.begin();
   }
-  else
-  {
-    Serial.println(F("Could not find a valid DHT sensor, check if there is one present on board!"));
-  }
 
-  //! Sensor power control pin , use deteced must set high
-  pinMode(POWER_CTRL, OUTPUT);
-  digitalWrite(POWER_CTRL, 1);
-  delay(1000);
-
-  bool wireOk = Wire.begin(I2C_SDA, I2C_SCL); // wire can not be initialized at beginng, the bus is busy
+  bool wireOk = Wire.begin(I2C_SDA, I2C_SCL); // wire can not be initialized at beginning, the bus is busy
   if (wireOk)
   {
     Serial.println(F("Wire ok"));
@@ -203,7 +239,7 @@ void setup()
   }
 
   float luxRead = lightMeter.readLightLevel(); // 1st read seems to return 0 always
-  Serial.print("lux ");
+  Serial.print("lux first read is 0; ");
   Serial.println(luxRead);
   delay(2000);
 
@@ -229,62 +265,75 @@ void setup()
   }
 
   uint16_t soil = readSoil();
-  config.soil = soil;
+  config.soilHumidity = soil;
   float soilTemp = readSoilTemp();
   config.soilTemp = soilTemp;
 
-  uint32_t salt = readSalt();
-  config.salt = salt;
+  uint32_t fertilizer = readSalt();
+  config.fertilizer = fertilizer;
   String advice;
-  if (salt < 201)
+  if (fertilizer < 201)
   {
-    advice = "needed";
+    advice = "Needed";
   }
-  else if (salt < 251)
+  else if (fertilizer < 251)
   {
-    advice = "low";
+    advice = "Low";
   }
-  else if (salt < 351)
+  else if (fertilizer < 351)
   {
-    advice = "optimal";
+    advice = "Optimal";
   }
-  else if (salt > 350)
+  else if (fertilizer > 350)
   {
-    advice = "too high";
+    advice = "Too high";
   }
-  Serial.println(advice);
-  config.saltadvice = advice;
+  // Serial.println(advice);
+  config.fertilizerAdvice = advice;
 
   // Battery status, and charging status and days.
-  float bat = readBattery();
-  config.bat = bat;
-  config.batcharge = "";
-  Serial.println("Battery level");
+  float bat = readBattery(voltx);
+  config.batPercentage = bat;
+  config.batStatus = "Discharging";
+  Serial.print("Battery level: ");
   Serial.println(bat);
-  if (bat > 130)
+  if (bat > 110)
   {
-    config.batcharge = "charging";
+    config.batStatus = "Charging";
     SPIFFS.remove("/batinfo.conf");
     epochChargeTime = timeClient.getEpochTime();
     battChargeEpoc = String(epochChargeTime) + ":" + String(dayStamp);
     const char *batinfo_write = battChargeEpoc.c_str();
     writeFile(SPIFFS, "/batinfo.conf", batinfo_write);
-    Serial.println("dayStamp");
+    Serial.print("charging dayStamp = ");
     Serial.println(dayStamp);
-    config.batchargeDate = dayStamp;
+    config.batChargeDate = dayStamp;
   }
 
-  Serial.println("Charge Epoc");
+  // Serial.println("\n\n----Listing files before format----");
+  //   listAllFiles();
+
+  //   bool formatted = SPIFFS.format();
+
+  //   if(formatted){
+  //     Serial.println("\n\nSuccess formatting");
+  //   }else{
+  //     Serial.println("\n\nError formatting");
+  //   }
+
+  //   Serial.println("\n\n----Listing files after format----");
+  //   listAllFiles();
+
+  Serial.print("Charge Epoc (time) = ");
   Serial.println(battChargeEpoc);
   unsigned long epochTime = timeClient.getEpochTime();
-  Serial.println("Test Epoc");
+  Serial.print("Test Epoc = ");
   Serial.println(epochTime);
   epochChargeTime = battChargeEpoc.toInt();
-  Serial.println("first calculation");
+  Serial.print("first time calculation = ");
   Serial.println(epochTime - epochChargeTime);
   float epochTimeFl = float(epochTime);
-  float epochChargeTimeFl = float(epochChargeTime); 
-  
+  float epochChargeTimeFl = float(epochChargeTime);
 
   daysOnBattery = (epochTimeFl - epochChargeTimeFl) / battChargeDateDivider;
   daysOnBattery = truncate(daysOnBattery, 1);
@@ -292,19 +341,19 @@ void setup()
 
   if (bat > 100)
   {
-    config.bat = 100;
+    config.batPercentage = 100;
   }
 
-  config.bootno = bootCount;
+  config.bootNo = bootCount;
 
   luxRead = lightMeter.readLightLevel();
   Serial.print("lux ");
   Serial.println(luxRead);
   config.lux = luxRead;
-  config.rel = rel;
+  config.releaseVersion = rel;
 
   // Create JSON file
-  Serial.println(F("Creating JSON document..."));
+  // Serial.println(F("Creating JSON document..."));
   if (logging)
   {
     writeFile(SPIFFS, "/error.log", "Creating JSON document...! \n");
@@ -312,11 +361,11 @@ void setup()
   saveConfiguration(config);
 
   // Go to sleep
-  //Increment boot number and print it every reboot
+  // Increment boot number and print it every reboot
   ++bootCount;
   Serial.println("Boot number: " + String(bootCount));
 
-  //Go to sleep now
+  // Go to sleep now
   delay(1000);
   goToDeepSleep();
 }
