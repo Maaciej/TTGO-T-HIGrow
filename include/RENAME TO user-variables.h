@@ -35,10 +35,10 @@ float bat_volt_high = 4.12;
 uint16_t bat_reading_high = 2370;
 
 // Salt/Fertilizer recommandation break points. You can change these according to your own calibration measurements.
-int fertil_needed = 200;
-int fertil_low = 201;
-int fertil_opt = 251;
-int fertil_high = 351;
+int fertilizer_needed = 200;
+int fertilizer_low = 201;
+int fertilizer_opt = 251;
+int fertilizer_high = 351;
 
 // Give the sensor a plant name, change to true, upload sketch and then revert to false
 const bool update_plant_name = true;
@@ -57,10 +57,10 @@ int plantValveNo = 1;
 
 // define your SSID's, and remember to fill out variable ssidArrNo with the number of your SSID's
 String ssidArr[] = {"my-wifi-ssid", "my-wifi-ssid2"};
-int ssidArrNo = 2;
+int wifi_ssid_arr_no = 2;
 
-const char *ssid = ""; // no need to fill in
-const char *password = "";
+const char *wifi_ssid = ""; // no need to fill in
+const char *wifi_password = "";
 const char *ntpServer = "pool.ntp.org";
 
 // Off-sets for time, and summertime. each hour is 3.600 seconds.
@@ -71,8 +71,8 @@ const long gmtOffset_sec = 3600;
 
 const char broker[] = "192.168.0.1";
 int port = 1883;
-const char mqttuser[] = ""; // add eventual mqtt username
-const char mqttpass[] = ""; // add eventual mqtt password
+const char mqttUser[] = ""; // add eventual mqtt username
+const char mqttPass[] = ""; // add eventual mqtt password
 const char mqttPrefix[] = "homeassistant/sensor/";
 
 // *******************************************************************************************************************************

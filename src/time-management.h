@@ -11,7 +11,8 @@ String dateYear = dayStamp.substring(0, 4);
 String dateMonth = dayStamp.substring(5, 7);
 String dateDay = dayStamp.substring(8, 10);
 dayStamp = dateYear + "-" + dateMonth + "-" + dateDay;
-config.date = dayStamp;
+config.
+date = dayStamp;
 // Extract time
 // timeStamp1 = formattedDate.substring(splitT + 1, formattedDate.length() - 1);
 // config.time = timeStamp1.substring(0, 8);
@@ -25,70 +26,79 @@ bool dst = false;
 // Test for DST active
 if (thisMonth == 10 && thisDay < 25 && thisWeekday < 7)
 {
-  dst = true;
+dst = true;
 }
 
 if (thisMonth == 10 && thisDay > 24 && thisWeekday == 7 && thisHour < 2)
 {
-  dst = true;
+dst = true;
 }
 
-if (thisMonth < 10 && thisMonth > 3)
+if (thisMonth<10 && thisMonth> 3)
 {
-  dst = true;
+dst = true;
 }
 
 if (thisMonth == 3)
 {
-  dst = true;
-  if (thisDay < 25)
-  {
-    dst = false;
-  }
-  else
-  // thisDay > 25
-  {
-    if (thisWeekday == 7 && thisHour < 2)
-    {
-      dst = false;
-    }
-    else
-    {
-      if (thisWeekday == 7)
-      {
-        dst = true;
-      }
-      else
-      {
-        if (thisWeekday < 7)
-        {
-          int checkSum = thisDay - thisWeekday + 7;
-          if (checkSum > 31)
-          {
-            dst = true;
-          }
-          else
-          {
-            dst = false;
-          }
-        }
-      }
-    }
-  }
+dst = true;
+if (thisDay < 25)
+{
+dst = false;
+}
+else
+// thisDay > 25
+{
+if (thisWeekday == 7 && thisHour < 2)
+{
+dst = false;
+}
+else
+{
+if (thisWeekday == 7)
+{
+dst = true;
+}
+else
+{
+if (thisWeekday < 7)
+{
+int checkSum = thisDay - thisWeekday + 7;
+if (checkSum > 31)
+{
+dst = true;
+}
+else
+{
+dst = false;
+}
+}
+}
+}
+}
 }
 
 if (dst)
 {
-  Serial.println("Czas letni");
-  timeClient.setTimeOffset(gmtOffset_sec + 3600);
-  while (!timeClient.update())
-  {
-    timeClient.forceUpdate();
-  }
+Serial.println("Czas letni");
+timeClient.
+setTimeOffset(gmtOffset_sec
++ 3600);
+while (!timeClient.
+
+update()
+
+)
+{
+timeClient.
+
+forceUpdate();
+
+}
 }
 else
 {
-  Serial.println("czas zimowy");
+Serial.println("czas zimowy");
 }
 
 // The formattedDate comes with the following format:
@@ -104,4 +114,5 @@ formattedDate = timeClient.getFormattedDate();
 // String dateDay = dayStamp.substring(8, 10);
 // dayStamp = dateYear + "-" + dateMonth + "-" + dateDay;
 timeStamp1 = formattedDate.substring(splitT + 1, formattedDate.length() - 1);
-config.time = timeStamp1.substring(0, 8);
+config.
+time = timeStamp1.substring(0, 8);

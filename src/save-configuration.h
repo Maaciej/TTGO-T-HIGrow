@@ -1,8 +1,10 @@
-void mqttSendConfig(String identyfikator, String name, Config config, String chipId, String uom = "", String dc = "", String icon = "")
-{
+void mqttSendConfig(String identifier, String name, Config config, String chipId, String uom = "", String dc = "",
+                    String icon = "") {
   bool print_info = false;
 
-  const String topicStr_c = mqttPrefix + plant_name + "/" + identyfikator + "/config";
+  // Setup the
+  std::replace(plant_name.begin(), plant_name.end(), ' ', '_');
+  const String topicStr_c = mqttPrefix + plant_name + "/" + identifier + "/config";
   const char *topic_c = topicStr_c.c_str();
 
   StaticJsonDocument<1000> doc_c;
@@ -16,37 +18,30 @@ void mqttSendConfig(String identyfikator, String name, Config config, String chi
   device["name"] = device_name;
   device["manufacturer"] = "LILYGO";
   device["model"] = "TTGO T-Higrow";
-  device["sw_version"] = config.releaseVersion;
+  device["sw_version"] = config.release_version;
 
   // Name of the sensor
   root["name"] = name;
-  root["object_id"] = plant_name + " " + identyfikator;
+  root["object_id"] = plant_name + " " + identifier;
   root["retain"] = "true";
-  root["unique_id"] = chipId + "-" + identyfikator;
+  root["unique_id"] = chipId + "-" + identifier;
   root["state_topic"] = mqttPrefix + plant_name + "/state";
-  root["value_template"] = "{{ value_json." + identyfikator + " }}";
+  root["value_template"] = "{{ value_json." + identifier + " }}";
 
-  // If we want online and offline messages
-  // root["availability_topic"] = mqttprefix + plant_name + "/availability";
-
-  if (icon.isEmpty() == false)
-  {
+  if (icon.isEmpty() == false) {
     root["icon"] = icon;
   }
 
-  if (dc.isEmpty() == false)
-  {
+  if (dc.isEmpty() == false) {
     root["device_class"] = dc;
   }
 
-  if (uom.isEmpty() == false)
-  {
+  if (uom.isEmpty() == false) {
     root["unit_of_measurement"] = uom;
   }
 
   // Nice print of configuration mqtt message
-  if (print_info)
-  {
+  if (print_info) {
     Serial.println();
     Serial.println("*****************************************");
     Serial.println(topic_c);
@@ -61,53 +56,38 @@ void mqttSendConfig(String identyfikator, String name, Config config, String chi
   char buffer_c[n];
 
   // Print how big the json is
-  if (print_info)
-  {
+  if (print_info) {
     Serial.print("Size of json: ");
     Serial.println(n);
   }
 
   serializeJson(doc_c, buffer_c, n);
 
-  if (logging)
-  {
+  if (logging) {
     writeFile(SPIFFS, "/error.log", "Sending message to topic: \n");
   }
 
   bool retained = true;
-
-  Serial.print("Publishing message to config: \n");
-
-  if (mqttClient.publish(topic_c, buffer_c, retained))
-  {
-    if (print_info)
-    {
+  if (mqttClient.publish(topic_c, buffer_c, retained)) {
+    if (print_info) {
       Serial.println("Message published successfully");
     }
-  }
-  else
-  {
-    if (print_info)
-    {
+  } else {
+    if (print_info) {
       Serial.println("Error in Message, not published");
     }
 
-    goToDeepSleepFiveMinutes();
+    goToDeepSleepDuration();
   }
 
-  if (print_info)
-  {
+  if (print_info) {
     Serial.println("*****************************************\n");
   }
 }
 
 // Allocate a JsonDocument
-void saveConfiguration(const Config &config)
-{
+void saveConfiguration(const Config &config) {
   bool print_info = false;
-  //  Serial.println(WiFi.macAddress());
-  //  String stringMAC = WiFi.macAddress();
-  //  stringMAC.replace(':', '_');
 
   byte mac[6];
   WiFi.macAddress(mac);
@@ -115,44 +95,34 @@ void saveConfiguration(const Config &config)
   //  String chipId = String(mac[0], HEX) + String(mac[1], HEX) + String(mac[2], HEX) + String(mac[3], HEX) + String(mac[4], HEX) + String(mac[5], HEX);
   String chipId = "";
   String HEXcheck = "";
-  for (int i = 0; i <= 5; i++)
-  {
+  for (int i = 0; i <= 5; i++) {
     HEXcheck = String(mac[i], HEX);
-    if (HEXcheck.length() == 1)
-    {
+    if (HEXcheck.length() == 1) {
       chipId = chipId + "0" + String(mac[i], HEX);
-    }
-    else
-    {
+    } else {
       chipId = chipId + String(mac[i], HEX);
     }
   }
-  // Serial.println("chipId " + chipId);
-
   // Connect to mqtt broker
   Serial.print("Attempting to connect to the MQTT broker: ");
-  if (logging)
-  {
+  if (logging) {
     writeFile(SPIFFS, "/error.log", "Attempting to connect to the MQTT broker! \n");
   }
 
   Serial.println(broker);
   mqttClient.setServer(broker, port);
 
-  if (!mqttClient.connect(broker, mqttuser, mqttpass))
-  {
-    if (logging)
-    {
+  if (!mqttClient.connect(broker, mqttUser, mqttPass)) {
+    if (logging) {
       writeFile(SPIFFS, "/error.log", "MQTT connection failed! \n");
     }
 
     Serial.print("MQTT connection failed! Error code = ");
     Serial.println(mqttClient.state());
-    goToDeepSleepFiveMinutes();
+    goToDeepSleepDuration();
   }
 
-  if (logging)
-  {
+  if (logging) {
     writeFile(SPIFFS, "/error.log", "You're connected to the MQTT broker! \n");
   }
 
@@ -160,7 +130,7 @@ void saveConfiguration(const Config &config)
   Serial.println("\n");
 
   // https://www.home-assistant.io/integrations/sensor/#device-class
-  // Home Assitant MQTT Autodiscovery mesasaages
+  // Home Assistant MQTT Autodiscovery mesasaages
 
   const String topicStr = mqttPrefix + plant_name + "/state";
   const char *topic = topicStr.c_str();
@@ -179,13 +149,10 @@ void saveConfiguration(const Config &config)
 
   // True voltage
   mqttSendConfig("battVoltage", "Battery Voltage", config, chipId, "V", "voltage", "mdi:battery");
-  plant["battVoltage"] = config.batVoltage;
+  plant["battVoltage"] = config.battery_voltage;
 
   mqttSendConfig("batPercentage", "Battery", config, chipId, "%", "", "mdi:battery");
-  plant["batPercentage"] = config.batPercentage;
-
-  mqttSendConfig("sleep5Count", "Sleep Count", config, chipId, "", "", "mdi:counter");
-  plant["sleep5Count"] = sleep5No;
+  plant["batPercentage"] = config.battery_percentage;
 
   mqttSendConfig("bootCount", "Boot Count", config, chipId, "", "", "mdi:counter");
   plant["bootCount"] = config.bootNo;
@@ -203,31 +170,31 @@ void saveConfiguration(const Config &config)
   // plant["date"] = config.date;
 
   mqttSendConfig("daysOnBattery", "Days On Battery", config, chipId, "", "", "mdi:calendar-clock");
-  plant["daysOnBattery"] = config.daysOnBattery;
+  plant["daysOnBattery"] = config.days_on_battery;
 
   mqttSendConfig("batChargeDate", "Last Charge Date", config, chipId, "", "date", "mdi:calendar-clock");
-  plant["batChargeDate"] = config.batChargeDate;
+  plant["batChargeDate"] = config.battery_charge_date;
 
   mqttSendConfig("batStatus", "Battery Status", config, chipId);
-  plant["batStatus"] = config.batStatus; // nie
+  plant["batStatus"] = config.battery_status; // nie
 
   mqttSendConfig("lux", "Lux", config, chipId, "lx", "illuminance", "mdi:white-balance-sunny");
   plant["lux"] = config.lux;
 
   mqttSendConfig("temp", "Ambient Temperature", config, chipId, "°C", "temperature", "mdi:thermometer"); // nie
-  plant["temp"] = config.temp;
+  plant["temp"] = config.temperature;
 
   mqttSendConfig("humid", "Ambient Humidity", config, chipId, "%", "humidity", "mdi:water-percent");
-  plant["humid"] = config.humid;
+  plant["humid"] = config.humidity;
 
   mqttSendConfig("pressure", "Pressure", config, chipId, "hPa", "pressure", "mdi:gauge");
   plant["pressure"] = config.pressure;
 
   mqttSendConfig("soilHumidity", "Soil Humidity", config, chipId, "%", "humidity", "mdi:water-percent");
-  plant["soilHumidity"] = config.soilHumidity;
+  plant["soilHumidity"] = config.soil_humidity;
 
   mqttSendConfig("soilTemp", "Soil Temperature", config, chipId, "°C", "temperature", "mdi:thermometer");
-  plant["soilTemp"] = config.soilTemp; // nie
+  plant["soilTemp"] = config.soil_temperature; // nie
 
   mqttSendConfig("fertilizer", "Fertilizer", config, chipId, "", "", "mdi:food");
   plant["fertilizer"] = config.fertilizer;
@@ -249,8 +216,7 @@ void saveConfiguration(const Config &config)
   size_t n = measureJson(doc) + 1;
 
   // Print how big the json is
-  if (print_info)
-  {
+  if (print_info) {
     Serial.print("Size of json: ");
     Serial.println(n);
     Serial.println();
@@ -264,21 +230,17 @@ void saveConfiguration(const Config &config)
 
   Serial.print("Sending message to state: ");
   Serial.println(topic);
-  if (logging)
-  {
+  if (logging) {
     writeFile(SPIFFS, "/error.log", "Sending message to state: \n");
   }
 
   bool retained = true;
-
-  if (mqttClient.publish(topic, buffer, retained))
-  {
+  if (mqttClient.publish(topic, buffer, retained)) {
     Serial.println("Message published successfully");
-  }
-  else
-  {
+  } else {
     Serial.println("Error in Message, not published");
-    goToDeepSleepFiveMinutes();
+    goToDeepSleepDuration();
   }
+
   Serial.println();
 }
