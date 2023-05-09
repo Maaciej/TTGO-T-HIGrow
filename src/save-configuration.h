@@ -199,8 +199,8 @@ void saveConfiguration(const Config &config) {
   mqttSendConfig("fertilizer", "Fertilizer", config, chipId, "", "", "mdi:food");
   plant["fertilizer"] = config.fertilizer;
 
-  mqttSendConfig("fertilizerAdvice", "Fertilizer Advice", config, chipId, "", "", "mdi:food");
-  plant["fertilizerAdvice"] = config.fertilizerAdvice; // nie
+  // mqttSendConfig("fertilizerAdvice", "Fertilizer Advice", config, chipId, "", "", "mdi:food");
+  // plant["fertilizerAdvice"] = config.fertilizerAdvice; // nie
 
   // plant["plantValveNo"] = plantValveNo; //nie
   // plant["wifissid"] = WiFi.SSID(); //nie
