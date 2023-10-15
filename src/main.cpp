@@ -45,48 +45,51 @@
 //           rel = "4.2.2"; // For the Greenhouse auto watering, the plantValveNo have been introduced. (Greenhouse auto watering is in development)
 //           rel = "4.2.3"; // Removed the battery day counter - for good, use BeardedTingers solution if you need it.
 //           rel = "4.3.1"; // Finally the days since last charging works correctly.
-const String rel = "4.3.2"; // Corrected an error in DST.
+//           rel = "4.3.2"; // Corrected an error in DST.
+//                 "5.0.0"; // Reworked auto discovery
+const String RELEASE_VERSION = "5.1.0"; // Code upgrades
 
 // mqtt constants
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 // Date calculator
-unsigned long epochTime;
-String battChargeEpoc;
-unsigned long epochChargeTime;
-float battChargeDateDivider = 86400;
-float daysOnBattery;
+unsigned long epoch_time;
+String batt_charge_epoc;
+unsigned long epoch_charge_time;
+float batt_charge_date_divider = 86400;
+float days_on_battery;
 
 // Reboot counters
-RTC_DATA_ATTR int bootCount = 0;
-RTC_DATA_ATTR int sleep5no = 0;
+RTC_DATA_ATTR int boot_count = 0;
 
-//Sensor bools
+// Voltage stabilization
+// RTC_DATA_ATTR float voltage_previous_read = 0;
+
+// Sensor bools
 bool bme_found = false;
 
-//json construct setup
-struct Config
-{
+// json construct setup
+struct Config {
   String date;
   String time;
-  int bootno;
-  int sleep5no;
+  int bootNo;
   float lux;
-  float temp;
-  float humid;
-  float soil;
-  float soilTemp;
-  float salt;
-  String saltadvice;
-  float bat;
-  String batcharge;
-  String batchargeDate;
-  float daysOnBattery;
-  float batvolt;
-  float batvoltage;
+  float temperature;
+  float humidity;
+  float soil_humidity;
+  float soil_temperature;
+  float fertilizer;
+  String fertilizerAdvice;
+  float battery_percentage;
+  String battery_status;
+  String battery_charge_date;
+  float days_on_battery;
+  float battery_volt;
+  float battery_volt_read;
+  float battery_voltage;
   float pressure;
-  String rel;
+  String release_version;
 };
 Config config;
 
@@ -103,8 +106,8 @@ const int led = 13;
 #define USER_BUTTON 35
 #define DS18B20_PIN 21
 
-BH1750 lightMeter(0x23); //0x23
-Adafruit_BME280 bmp;     //0x77
+BH1750 lightMeter(0x23); // 0x23
+Adafruit_BME280 bmp;     // 0x77
 
 DHT dht(DHT_PIN, DHT_TYPE);
 DS18B20 temp18B20(DS18B20_PIN);
@@ -116,7 +119,6 @@ String dayStamp;
 String timeStamp1;
 
 // Start Subroutines
-
 #include <file-management.h>
 #include <go-to-deep-sleep.h>
 #include <get-string-value.h>
@@ -126,10 +128,30 @@ String timeStamp1;
 #include <read-batt-info.h>
 #include <floatConv.h>
 
-void setup()
-{
+void setup() {
+
+  //! Sensor power control pin , use deteced must set high
+  pinMode(POWER_CTRL, OUTPUT);
+  digitalWrite(POWER_CTRL, 1);
+  delay(1000);
+
   Serial.begin(115200);
   Serial.println("Void Setup");
+
+  // WiFi.mode(WIFI_STA);
+  // Set your new MAC Address
+  // uint8_t newMACAddress[] = {0x29, 0xD7, 0xAC, 0xCF, 0xF0, 0x77};
+  // Serial.print("[NEW] ESP32 Board MAC Address:  ");
+  // Serial.println(WiFi.macAddress());
+  // ESP32 Board add-on after version > 1.0.5
+  // esp_wifi_set_mac(WIFI_IF_STA, &newMACAddress[0]);
+
+  // Serial.print("[NEW] ESP32 Board MAC Address:  ");
+  // Serial.println(WiFi.macAddress());
+
+  uint16_t voltX = analogRead(BAT_ADC); // start of work no wifi fresh battery
+  Serial.print("VOLTXXXXXXXX :");
+  Serial.println(voltX);
 
 #include <module-parameter-management.h>
 
@@ -137,8 +159,7 @@ void setup()
   connectToNetwork();
   Serial.println(" ");
   Serial.println("Connected to network");
-  if (logging)
-  {
+  if (logging) {
     writeFile(SPIFFS, "/error.log", "Connected to network \n");
   }
 
@@ -148,179 +169,152 @@ void setup()
   //  timeClient.setTimeOffset(7200);
 
   timeClient.setTimeOffset(gmtOffset_sec);
-  while (!timeClient.update())
-  {
+  while (!timeClient.update()) {
     timeClient.forceUpdate();
   }
 
 #include <time-management.h>
-  //#include <battChargeDays.h>
-  if (dht_found)
-  {
+  // #include <battChargeDays.h>
+  if (dht_found) {
+    Serial.println(F("Attempting to connect to DHT sensor..."));
     dht.begin();
   }
-  else
-  {
-    Serial.println(F("Could not find a valid DHT sensor, check if there is one present on board!"));
-  }
 
-  //! Sensor power control pin , use deteced must set high
-  pinMode(POWER_CTRL, OUTPUT);
-  digitalWrite(POWER_CTRL, 1);
-  delay(1000);
-
-  bool wireOk = Wire.begin(I2C_SDA, I2C_SCL); // wire can not be initialized at beginng, the bus is busy
-  if (wireOk)
-  {
+  bool wire_ok = Wire.begin(I2C_SDA, I2C_SCL); // wire can not be initialized at beginning, the bus is busy
+  if (wire_ok) {
     Serial.println(F("Wire ok"));
-    if (logging)
-    {
+    if (logging) {
       writeFile(SPIFFS, "/error.log", "Wire Begin OK! \n");
     }
-  }
-  else
-  {
+  } else {
     Serial.println(F("Wire NOK"));
   }
 
-  if (!bmp.begin())
-  {
+  if (!bmp.begin()) {
     Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
     bme_found = false;
-  }
-  else
-  {
+  } else {
     bme_found = true;
   }
 
-  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE))
-  {
+  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
     Serial.println(F("BH1750 Advanced begin"));
-  }
-  else
-  {
+  } else {
     Serial.println(F("Error initialising BH1750"));
   }
 
-  float luxRead = lightMeter.readLightLevel(); // 1st read seems to return 0 always
-  Serial.print("lux ");
-  Serial.println(luxRead);
+  float lux_read = lightMeter.readLightLevel(); // 1st read seems to return 0 always
+  Serial.print("lux first read is 0; ");
+  Serial.println(lux_read);
+
   delay(2000);
 
-  if (dht_found)
-  {
+  if (dht_found) {
     float t12 = dht.readTemperature(); // Read temperature as Fahrenheit then dht.readTemperature(true)
-    config.temp = t12;
+    config.temperature = t12;
     delay(2000);
     float h12 = dht.readHumidity();
-    config.humid = h12;
+    config.humidity = h12;
   }
 
-  if (bme_found)
-  {
-    float bme_temp = bmp.readTemperature();
-    config.temp = bme_temp;
-
-    float bme_humid = bmp.readHumidity();
-    config.humid = bme_humid;
-
-    float bme_pressure = (bmp.readPressure() / 100.0F);
-    config.pressure = bme_pressure;
+  if (bme_found) {
+    config.temperature = bmp.readTemperature();
+    config.humidity = bmp.readHumidity();
+    config.pressure = (bmp.readPressure() / 100.0F);
   }
 
-  uint16_t soil = readSoil();
-  config.soil = soil;
-  float soilTemp = readSoilTemp();
-  config.soilTemp = soilTemp;
+  config.soil_humidity = readSoilHumidity();
+  config.soil_temperature = readSoilTemperature();
+  config.fertilizer = readFertilizerSalt();
 
-  uint32_t salt = readSalt();
-  config.salt = salt;
-  String advice;
-  if (salt < 201)
-  {
-    advice = "needed";
-  }
-  else if (salt < 251)
-  {
-    advice = "low";
-  }
-  else if (salt < 351)
-  {
-    advice = "optimal";
-  }
-  else if (salt > 350)
-  {
-    advice = "too high";
-  }
-  Serial.println(advice);
-  config.saltadvice = advice;
+  // String advice;
+  // if (fertilizer < 201) {
+  //     advice = "Needed";
+  // } else if (fertilizer < 251) {
+  //     advice = "Low";
+  // } else if (fertilizer < 351) {
+  //     advice = "Optimal";
+  // } else if (fertilizer > 350) {
+  //     advice = "Too high";
+  // }
+  // // Serial.println(advice);
+  // config.fertilizerAdvice = advice;
 
   // Battery status, and charging status and days.
-  float bat = readBattery();
-  config.bat = bat;
-  config.batcharge = "";
-  Serial.println("Battery level");
+  float bat = readBattery(voltX);
+  config.battery_percentage = bat;
+  config.battery_status = "Discharging";
+  Serial.print("Battery level: ");
   Serial.println(bat);
-  if (bat > 130)
-  {
-    config.batcharge = "charging";
+  if (bat > 110) {
+    config.battery_status = "Charging";
     SPIFFS.remove("/batinfo.conf");
-    epochChargeTime = timeClient.getEpochTime();
-    battChargeEpoc = String(epochChargeTime) + ":" + String(dayStamp);
-    const char *batinfo_write = battChargeEpoc.c_str();
+    epoch_charge_time = timeClient.getEpochTime();
+    batt_charge_epoc = String(epoch_charge_time) + ":" + String(dayStamp);
+    const char *batinfo_write = batt_charge_epoc.c_str();
     writeFile(SPIFFS, "/batinfo.conf", batinfo_write);
-    Serial.println("dayStamp");
+    Serial.print("charging dayStamp = ");
     Serial.println(dayStamp);
-    config.batchargeDate = dayStamp;
+    config.battery_charge_date = dayStamp;
   }
 
-  Serial.println("Charge Epoc");
-  Serial.println(battChargeEpoc);
-  unsigned long epochTime = timeClient.getEpochTime();
-  Serial.println("Test Epoc");
-  Serial.println(epochTime);
-  epochChargeTime = battChargeEpoc.toInt();
-  Serial.println("first calculation");
-  Serial.println(epochTime - epochChargeTime);
-  float epochTimeFl = float(epochTime);
-  float epochChargeTimeFl = float(epochChargeTime); 
-  
+  // Serial.println("\n\n----Listing files before format----");
+  //   listAllFiles();
 
-  daysOnBattery = (epochTimeFl - epochChargeTimeFl) / battChargeDateDivider;
-  daysOnBattery = truncate(daysOnBattery, 1);
-  config.daysOnBattery = daysOnBattery;
+  //   bool formatted = SPIFFS.format();
 
-  if (bat > 100)
-  {
-    config.bat = 100;
+  //   if(formatted){
+  //     Serial.println("\n\nSuccess formatting");
+  //   }else{
+  //     Serial.println("\n\nError formatting");
+  //   }
+
+  //   Serial.println("\n\n----Listing files after format----");
+  //   listAllFiles();
+
+  Serial.print("Charge Epoc (time) = ");
+  Serial.println(batt_charge_epoc);
+  unsigned long epoch_time = timeClient.getEpochTime();
+
+  Serial.print("Test Epoc = ");
+  Serial.println(epoch_time);
+
+  epoch_charge_time = batt_charge_epoc.toInt();
+  Serial.print("first time calculation = ");
+  Serial.println(epoch_time - epoch_charge_time);
+  float epoch_time_fl = float(epoch_time);
+  float epoch_charge_time_fl = float(epoch_charge_time);
+
+  days_on_battery = (epoch_time_fl - epoch_charge_time_fl) / batt_charge_date_divider;
+  days_on_battery = truncate(days_on_battery, 1);
+  config.days_on_battery = days_on_battery;
+
+  if (bat > 100) {
+    config.battery_percentage = 100;
   }
 
-  config.bootno = bootCount;
+  config.bootNo = boot_count;
 
-  luxRead = lightMeter.readLightLevel();
+  lux_read = lightMeter.readLightLevel();
   Serial.print("lux ");
-  Serial.println(luxRead);
-  config.lux = luxRead;
-  config.rel = rel;
+  Serial.println(lux_read);
+  config.lux = lux_read;
+
+  config.release_version = RELEASE_VERSION;
 
   // Create JSON file
-  Serial.println(F("Creating JSON document..."));
-  if (logging)
-  {
+  if (logging) {
     writeFile(SPIFFS, "/error.log", "Creating JSON document...! \n");
   }
   saveConfiguration(config);
 
   // Go to sleep
-  //Increment boot number and print it every reboot
-  ++bootCount;
-  Serial.println("Boot number: " + String(bootCount));
+  // Increment boot number and print it every reboot
+  ++boot_count;
+  Serial.println("Boot number: " + String(boot_count));
 
-  //Go to sleep now
+  // Go to sleep now
   delay(1000);
-  goToDeepSleep();
+  goToDeepSleepDuration(TIME_TO_SLEEP);
 }
 
-void loop()
-{
-}
